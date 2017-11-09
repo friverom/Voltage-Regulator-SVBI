@@ -36,6 +36,7 @@ void check_V3_status( union data_check);
 void Control_Loop(void);
 void Manual_Control(void);
 void Display_Data(void);
+char check_start_flag(void);
 
 char Int_Flag=0;
 SplitInt value=61630;
@@ -45,6 +46,10 @@ union Digital_Inputs Inputs; //IOR5E Digital Inputs
 char rx_buffer[20], tx_buffer[40];
 char rx_flag,tx_flag;
 char rx_pointer, tx_pointer;
+
+char start_flag=0; //Bandera para retrasar control loop en arranque
+char start_counter=0; //temporizador arranque
+int start_value=0;
 
 void main(void) {
    
@@ -61,6 +66,8 @@ void main(void) {
     int p_len;
     char buffer[20];
     char BackLight=0;
+    
+    
        
     TRISA=0xff;
     TRISB=0xff;
@@ -134,6 +141,8 @@ void main(void) {
         set_Vin_span(1.0);
         Save_Variables();   //Salvar variables en EEPROM
     }
+    //Calcular tiempo de estabilizacion de voltajes
+    start_value = (int) (get_LP_RC_Constant()*4.0/0.5);
     
     //Habilitar Interrupts
     INTCONbits.PEIE=1;
@@ -175,8 +184,11 @@ void main(void) {
             //Chequear si en modo AUTO, correr lazo de control
             Inputs.byte=Rd_Digital_Inputs();
             if(!Inputs.B0){
-                Control_Loop(); //Modo Auto activo
-                Outputs.led8=1;
+                
+                if (check_start_flag()!=0) {
+                    Control_Loop(); //Modo Auto activo
+                    Outputs.led8 = 1;
+                }
             } else {
                 Manual_Control(); //Modo manual
                 Outputs.led8=0;
@@ -194,6 +206,17 @@ void main(void) {
 
 }
 
+//Set Control Flag si timer de arranque es > RC*4/0.5
+char check_start_flag(){
+
+    if(start_flag==0){
+        if(++start_counter>start_value+1)
+            start_flag=1;
+        else
+            start_flag=0;
+    }
+    return start_flag;
+}
 //Reset valores de max y min de voltaje de entrada a media noche
 void reset_max_min(void){
     
